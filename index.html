@@ -17,7 +17,7 @@
     html,body{height:100%;}
     body{
       margin:0; padding:24px;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang HK", "PingFang TC", "Noto Sans TC", "Helvetica Neue", Arial, "Microsoft JhengHei", sans-serif;
+      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang HK","PingFang TC","Noto Sans TC","Helvetica Neue",Arial,"Microsoft JhengHei",sans-serif;
       color:var(--text); background:var(--bg);
     }
     h1{margin:0 0 20px; font-size:32px; font-weight:800;}
@@ -35,7 +35,7 @@
       width:100%; padding:12px; box-sizing:border-box;
       border:1px solid var(--border); border-radius:8px; font-size:16px; background:#fff;
     }
-    textarea{resize:vertical; min-height:160px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;}
+    textarea{resize:vertical; min-height:160px; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;}
     .btn{
       display:inline-block; width:auto;
       background:var(--primary); color:#fff; border:none; cursor:pointer;
@@ -48,7 +48,7 @@
     .copy-wrap{position:relative;}
     .copy-btn{
       position:absolute; right:10px; top:10px; z-index:1; width:auto;
-      padding:8px 12px; font-size:14px; border-radius:6px; background:#111827; color:#fff;
+      padding:8px 12px; font-size:14px; border-radius:6px; background:#111827; color:#fff; cursor:pointer; border:none;
     }
     .msg-box{min-height:260px}
     .checkbox{display:inline-flex; align-items:center; gap:8px; font-size:14px;}
@@ -108,7 +108,7 @@
       </div>
 
       <p class="muted" style="margin-top:12px;">
-        備註：若 webhook 回來的是 <b>US$</b>，會以上方匯率換算；若是 <b>HK$</b> 則直接使用。
+        備註：若 webhook 回來的是 <b>HK$</b> 會直接用；若為 <b>US$</b> 會以上方匯率換算。
       </p>
     </section>
 
@@ -192,9 +192,7 @@
 
     // 產生訊息（固定繳費類型 01；Vitality 規則）
     function buildMessagesFromResult(res){
-      // 期待的鍵（依你 Webhook Response）
-      // 「持有人」「受保人」「保單號碼」「預計保費及保費徵費金額」「保費到期日」「繳費形式」
-      // 「AIA Vitality 健康程式會員號碼」「AIA Vitality 健康程式會籍狀況」「AIA Vitality 健康程式會費到期日」
+      // 期待鍵（與 Webhook Response 對齊）
       const ownerFull  = res["持有人"] || "";
       const insuredFull= res["受保人"] || "";
       const policyNo   = res["保單號碼"] || "";
@@ -206,7 +204,7 @@
       const vitStat = (res["AIA Vitality 健康程式會籍狀況"] || "").trim();
       const vitDue  = res["AIA Vitality 健康程式會費到期日"] || "";
 
-      // 填入左側欄位
+      // 填左側欄位
       document.getElementById('policyNumber').value = policyNo;
       document.getElementById('ownerName').value   = ownerFull;
       document.getElementById('insuredName').value = insuredFull;
@@ -238,8 +236,9 @@
           : vitDue; // 後備直接顯示
         // 會員號碼首字母也轉碼
         const vitAcc = vitNo ? toPayNo(vitNo) : "";
+        // ★ 這裡多一行空白行（\n\n）
         vitalityBlock =
-`\n❗️Vitality 信息：‼️
+`\n\n❗️Vitality 信息：‼️
 帳戶號碼：${vitAcc}
 帳戶狀態：${vitStat}
 繳費類型：05
@@ -285,12 +284,11 @@
       document.getElementById('wechatMsg').value  = wc;
     }
 
-    // 送資料到 Webhook（交由 ChatGPT 解析）
+    // 送資料到 Webhook（交由 Make + ChatGPT 解析）
     async function sendToWebhook(){
       const raw = document.getElementById('rawInput').value.trim();
       if(!raw){ alert("請先貼上保單全文"); return; }
 
-      // 你在 Make 端可直接把「Body.type=json」接住
       const payload = JSON.stringify({ text: raw });
 
       try{
@@ -298,17 +296,14 @@
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: payload,
-          mode: "cors" // 伺服器需回 Access-Control-Allow-Origin
+          mode: "cors"
         });
         if(!res.ok){
           const t = await res.text().catch(()=>res.statusText);
           throw new Error(`HTTP ${res.status}：${t || "Webhook 錯誤"}`);
         }
-        const data = await res.json(); // 期待 webhook response 回 JSON
-        // 若 Make 回來是字串 -> 盡量轉 JSON
-        const result = (typeof data === "string") ? JSON.parse(data) : data;
-
-        buildMessagesFromResult(result);
+        const data = await res.json().catch(async()=>JSON.parse(await res.text()));
+        buildMessagesFromResult(data);
       }catch(err){
         console.error(err);
         alert("Webhook 呼叫失敗／回應格式不正確，請檢查 Make 的 Webhook Response 模組。");
