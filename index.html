@@ -11,7 +11,7 @@
       --radius:12px; --gap:20px;
     }
     *{box-sizing:border-box}
-    body{ margin:0; padding:24px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans CJK TC","Helvetica Neue", Arial, "PingFang TC", "Microsoft JhengHei", sans-serif; color:var(--text); background:var(--bg); }
+    body{ margin:0; padding:24px; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans CJK TC","Helvetica Neue",Arial,"PingFang TC","Microsoft JhengHei",sans-serif; color:var(--text); background:var(--bg);}
     h1{margin:0 0 20px; font-size:28px}
     h2{margin:0 0 12px; font-size:20px}
     label{display:block; margin:10px 0 6px; font-size:14px; color:var(--muted)}
@@ -92,7 +92,7 @@
 
           <div>
             <button type="button" onclick="generateMessages()">生成提醒訊息</button>
-            <div class="muted">提示：保費繳費類型固定為 <b>01</b>；Vitality 狀態為 <b>Terminated</b> 時不輸出 Vitality 資訊。可勾選「自動送出到 Webhook」。</div>
+            <div class="muted">提示：保費繳費類型固定 <b>01</b>；Vitality 狀態為 <b>Terminated</b> 時不輸出 Vitality 資訊。美元才會乘以匯率；港幣不乘。</div>
           </div>
         </div>
       </section>
@@ -125,11 +125,14 @@
   </div>
 
   <script>
-    // ===== 設定：請把此 URL 換成你實際的 webhook 位址 =====
-    const WEBHOOK_URL = "https://hook.eu2.make.com/6tf86rya7llzle38muijmbwv6ska71g3"; // 例如：Netlify / Make / n8n / Zapier
+    // ===== 你的 Make Webhook 端點 =====
+    const WEBHOOK_URL = "https://hook.eu2.make.com/6tf86rya7llzle38muijmbwv6ska71g3";
+
+    // 固定規則
     const letterMap = { B:'1', E:'2', P:'3', A:'4', C:'5', G:'6', M:'8', V:'9' };
     const MAIN_PAY_TYPE = '01'; // 保費繳費類型固定 01
 
+    // 短姓名：去掉稱謂，取姓 + 名首字母
     function shortName(full) {
       let parts = (full||'').trim().replace(/\*/g,'').split(/\s+/)
         .filter(p => !/^MS\.?$|^MR\.?$|^MRS\.?$/i.test(p));
@@ -137,6 +140,7 @@
       const initials = parts.slice(1).map(n=>n.charAt(0)).join(' ');
       return surname + (initials? ' '+initials : '');
     }
+    // 轉 ISO 日期為「M月D日」
     function formatDateCNLocal(dateStr) {
       if(!dateStr) return '';
       const d = new Date(dateStr);
@@ -144,9 +148,12 @@
       return (d.getMonth()+1)+'月'+d.getDate()+'日';
     }
 
+    // 狀態變量
     let vitalityAccount = '', vitalityStatus = '', tmpVitalDue = '';
     let hkPremiumValue = '';
-    let lastPayload = null; // 記錄最後一次產出的 payload 給 webhook 用
+    let lastPayload = null;
+    // 允許 webhook 回覆覆寫的欄位
+    let _overrideOwnerShort = null, _overrideInsuredShort = null, _overrideVitality = null;
 
     function parseRaw() {
       const raw = document.getElementById('rawInput').value;
@@ -159,6 +166,7 @@
 
       lines.forEach(line=>{
         line=line.trim(); if(!line) return;
+
         if(!policy && /^(Policy Details|保單資料)/i.test(line)) {
           const m=line.match(/-\s*([A-Z0-9]+)/); if(m) policy=m[1].trim();
         }
@@ -211,7 +219,30 @@
       if(dueIso) document.getElementById('dueDate').value=dueIso;
       window.paymentMode = paymentModeDisplay; // 年繳/月繳顯示用
 
+      // 清空 webhook 覆寫
+      _overrideOwnerShort = _overrideInsuredShort = null;
+      _overrideVitality = null;
+
       generateMessages();
+    }
+
+    function vitalityBlock(){
+      // 以 webhook 覆寫優先
+      const v = _overrideVitality || (vitalityAccount && vitalityStatus && tmpVitalDue && vitalityStatus.toLowerCase()!=='terminated'
+        ? {account:vitalityAccount, status:vitalityStatus, due:tmpVitalDue, payType:'05', amountHKD:430} : null);
+
+      if (!v) return '';
+      const d=new Date(v.due || v.dueISO);
+      const vDue=`${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`;
+      return `
+
+❗️Vitality 信息：‼️
+帳戶號碼：${v.account}
+帳戶狀態：${v.status}
+繳費類型：${v.payType || '05'}
+到期日：${vDue}
+繳費金額：港幣${v.amountHKD ?? 430}
+`;
     }
 
     function buildPayload() {
@@ -224,27 +255,65 @@
 
       const fChar  = policy.charAt(0).toUpperCase();
       const payNo  = (letterMap[fChar]||'0') + policy.slice(1);
-      const ownerShort   = shortName(owner);
-      const insuredShort = shortName(insured);
+
+      const ownerShort   = _overrideOwnerShort ?? shortName(owner);
+      const insuredShort = _overrideInsuredShort ?? shortName(insured);
       const dateCN       = formatDateCNLocal(dueISO);
 
-      // 訊息（與畫面一致）
       const whats =
-`🌟 **溫馨提示** 🌟\n\n你好呀！😊🌈\n\n你的保費即將到期喇：\n- *持有人*：${ownerShort}\n- *繳費號碼*：${payNo}\n- *繳費類型*：${MAIN_PAY_TYPE}\n- *受保人*：${insuredShort}\n- *保費到期日*：${dateCN}\n- *保費*：港元${premHK}\n- *繳付形式*：${pm}\n` + vitalityBlock() + `\n記得在到期日前繳費啦！如果有任何問題，隨時可以聯絡我們。📞💬\n\n感謝你的支持！🌟🌺`;
+`🌟 **溫馨提示** 🌟
+
+你好呀！😊🌈
+
+你的保費即將到期喇：
+- *持有人*：${ownerShort}
+- *繳費號碼*：${payNo}
+- *繳費類型*：${MAIN_PAY_TYPE}
+- *受保人*：${insuredShort}
+- *保費到期日*：${dateCN}
+- *保費*：港元${premHK}
+- *繳付形式*：${pm}
+` + vitalityBlock() + `
+
+記得在到期日前繳費啦！如果有任何問題，隨時可以聯絡我們。📞💬
+
+感謝你的支持！🌟🌺`;
 
       const wechat =
-`🌟 溫馨提示 🌟\n\n你好呀！😊🌈\n\n你的保費即將到期喇：\n- 持有人：${ownerShort}\n- 繳費類型：${MAIN_PAY_TYPE}\n- 繳費號碼：${payNo}\n- 受保人：${insuredShort}\n- 保費到期日：${dateCN}\n- 保費：港元${premHK}\n- 繳付形式：${pm}\n` + vitalityBlock(true) + `\n記得在到期日前繳費啦！如果有任何問題，隨時可以聯絡我們。📞💬`;
+`🌟 溫馨提示 🌟
 
-      // Vitality 組裝
+你好呀！😊🌈
+
+你的保費即將到期喇：
+- 持有人：${ownerShort}
+- 繳費類型：${MAIN_PAY_TYPE}
+- 繳費號碼：${payNo}
+- 受保人：${insuredShort}
+- 保費到期日：${dateCN}
+- 保費：港元${premHK}
+- 繳付形式：${pm}
+` + vitalityBlock() + `
+
+記得在到期日前繳費啦！如果有任何問題，隨時可以聯絡我們。📞💬`;
+
+      // Vitality 結構（若需要 webhook 使用）
       let vitality = null;
-      if (vitalityAccount && vitalityStatus && tmpVitalDue && vitalityStatus.toLowerCase()!=='terminated') {
+      if (_overrideVitality){
+        const d = new Date(_overrideVitality.due || _overrideVitality.dueISO);
+        vitality = {
+          account: _overrideVitality.account,
+          status:  _overrideVitality.status,
+          payType: _overrideVitality.payType || '05',
+          dueISO:  d.toISOString().slice(0,10),
+          amountHKD: _overrideVitality.amountHKD ?? 430
+        };
+      } else if (vitalityAccount && vitalityStatus && tmpVitalDue && vitalityStatus.toLowerCase()!=='terminated'){
         const d = new Date(tmpVitalDue);
         vitality = {
           account: vitalityAccount,
-          status: vitalityStatus,
+          status:  vitalityStatus,
           payType: '05',
-          dueISO: d.toISOString().slice(0,10),
-          dueText: `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`,
+          dueISO:  d.toISOString().slice(0,10),
           amountHKD: 430
         };
       }
@@ -269,19 +338,9 @@
       };
     }
 
-    function vitalityBlock(isWechat){
-      if (vitalityAccount && vitalityStatus && tmpVitalDue && vitalityStatus.toLowerCase()!=='terminated') {
-        const d=new Date(tmpVitalDue);
-        const vDue=`${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`;
-        return `\n\n❗️Vitality 信息：‼️\n帳戶號碼：${vitalityAccount}\n帳戶狀態：${vitalityStatus}\n繳費類型：05\n到期日：${vDue}\n繳費金額：港幣430\n`;
-      }
-      return '';
-    }
-
     function generateMessages(){
       const p = buildPayload();
-      lastPayload = p; // 存起來
-
+      lastPayload = p;
       document.getElementById('whatsappMsg').value = p.messages.whatsapp;
       document.getElementById('wechatMsg').value  = p.messages.wechat;
 
@@ -290,25 +349,72 @@
       }
     }
 
+    // 接收 webhook response 並覆寫畫面
+    function applyWebhookResult(data){
+      if(!data) return;
+
+      if (data.messages) {
+        if (data.messages.whatsapp) document.getElementById('whatsappMsg').value = data.messages.whatsapp;
+        if (data.messages.wechat)   document.getElementById('wechatMsg').value   = data.messages.wechat;
+      }
+      if (data.overrides) {
+        const o = data.overrides;
+        if (o.premiumHKD)        document.getElementById('premiumRaw').value = o.premiumHKD;
+        if (o.payModeDisplay)    window.paymentMode = o.payModeDisplay;
+        if (o.dueDateISO)        document.getElementById('dueDate').value = o.dueDateISO;
+        if (o.ownerShort)        _overrideOwnerShort   = o.ownerShort;
+        if (o.insuredShort)      _overrideInsuredShort = o.insuredShort;
+      }
+      if (data.vitality) {
+        _overrideVitality = {
+          account:   data.vitality.account,
+          status:    data.vitality.status,
+          payType:   data.vitality.payType || '05',
+          due:       data.vitality.dueISO || data.vitality.due,
+          amountHKD: data.vitality.amountHKD ?? 430
+        };
+      }
+    }
+
     async function sendToWebhook(){
       try{
         const payload = lastPayload || buildPayload();
-        if(!WEBHOOK_URL || WEBHOOK_URL.includes('YOUR-WEBHOOK-ENDPOINT')) {
-          setStatus('請先設定有效的 WEBHOOK_URL。', true); return;
-        }
+        if(!WEBHOOK_URL){ setStatus('未設定 Webhook URL', true); return; }
+
         setStatus('傳送中…');
         const res = await fetch(WEBHOOK_URL, {
-          method:'POST',
-          headers:{'Content-Type':'application/json'},
+          method: 'POST',
+          mode: 'cors',
+          headers: { 'Content-Type':'application/json' },
           body: JSON.stringify(payload)
         });
-        if(!res.ok){ throw new Error(`HTTP ${res.status}`); }
-        const data = await res.text();
+
+        if(!res.ok){
+          const txt = await res.text();
+          throw new Error(`HTTP ${res.status} ${txt || ''}`);
+        }
+
+        let data;
+        const ct = res.headers.get('content-type') || '';
+        if (ct.includes('application/json')) data = await res.json();
+        else {
+          const txt = await res.text();
+          try { data = JSON.parse(txt); } catch { data = null; }
+        }
+
+        if (data) {
+          applyWebhookResult(data);
+          // 重新以 webhook 的覆寫資料再組一次訊息（可選）
+          const p2 = buildPayload();
+          document.getElementById('whatsappMsg').value = p2.messages.whatsapp;
+          document.getElementById('wechatMsg').value  = p2.messages.wechat;
+          lastPayload = p2;
+        }
+
         setStatus('已送出 ✅', false);
-        console.log('Webhook response:', data);
       }catch(err){
         console.error(err);
-        setStatus('送出失敗：'+ err.message, true);
+        setStatus('送出失敗：' + err.message, true);
       }
     }
 
@@ -327,4 +433,3 @@
   </script>
 </body>
 </html>
-
