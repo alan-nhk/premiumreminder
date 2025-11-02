@@ -2,428 +2,341 @@
 <html lang="zh-HK">
 <head>
   <meta charset="UTF-8" />
-  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
-  <meta http-equiv="Pragma" content="no-cache" />
-  <meta http-equiv="Expires" content="0" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>保費到期提醒產生器</title>
   <style>
     :root{
-      --bg:#f7f8fa; --card:#fff; --text:#222; --sub:#6b7280; --border:#e5e7eb;
-      --primary:#0d6efd; --primary-dark:#0b5ed7; --danger:#dc2626; --ok:#16a34a;
-      --radius:12px;
+      --primary:#0d6efd;
+      --border:#e5e7eb;
+      --bg:#f8fafc;
+      --card:#ffffff;
+      --text:#0f172a;
+      --muted:#64748a;
+      --radius:10px;
     }
-    *{ box-sizing:border-box; }
-    html,body{
-      margin:0; background:var(--bg); color:var(--text);
-      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans CJK TC","PingFang TC","Microsoft JhengHei","Helvetica Neue",Arial,sans-serif;
-      -webkit-text-size-adjust:100%;
+    html,body{height:100%;}
+    body{
+      margin:0; padding:24px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang HK", "PingFang TC", "Noto Sans TC", "Helvetica Neue", Arial, "Microsoft JhengHei", sans-serif;
+      color:var(--text); background:var(--bg);
     }
-    h1{ margin:24px auto 16px; max-width:1200px; padding:0 16px; font-size:28px; }
-    h2{ margin:0 0 12px; font-size:20px; }
-    label{ display:block; margin:10px 0 6px; color:var(--sub); font-size:14px; }
-    input, textarea{
-      width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:8px; background:#fff; font-size:16px;
+    h1{margin:0 0 20px; font-size:32px; font-weight:800;}
+    .container{
+      display:grid; gap:24px;
+      grid-template-columns: 1.1fr 1fr;
     }
-    textarea{ resize:vertical; }
-    button{
-      display:inline-block; font-size:18px !important; padding:12px 20px !important;
-      border:none; border-radius:8px; color:#fff; background:var(--primary); cursor:pointer;
+    .card{
+      background:var(--card); border:1px solid var(--border);
+      border-radius:var(--radius); padding:20px;
+      box-shadow:0 1px 2px rgba(0,0,0,0.04);
     }
-    button:hover{ background:var(--primary-dark); }
-    .btn-ghost{ background:#eef2ff; color:#1e3a8a; }
-    .container{ max-width:1200px; margin:0 auto; padding:0 16px 24px; }
-    .grid{ display:grid; grid-template-columns:minmax(360px,1fr) minmax(360px,1fr); gap:16px; }
-    .card{ background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:16px; }
-    .row{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
-    .muted{ color:var(--sub); font-size:13px; }
-    .msg{ min-height:260px; white-space:pre-wrap; overflow-wrap:break-word; }
-    .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace; }
-    .status{ font-size:13px; }
-    .status.ok{ color:var(--ok) } .status.err{ color:var(--danger) }
-    @media (max-width: 900px){ .grid{ grid-template-columns:1fr; } }
+    label{display:block; font-size:14px; color:var(--muted); margin:10px 0 6px;}
+    input, textarea, button{
+      width:100%; padding:12px; box-sizing:border-box;
+      border:1px solid var(--border); border-radius:8px; font-size:16px; background:#fff;
+    }
+    textarea{resize:vertical; min-height:160px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;}
+    .btn{
+      display:inline-block; width:auto;
+      background:var(--primary); color:#fff; border:none; cursor:pointer;
+      font-size:18px; padding:12px 20px; border-radius:8px; line-height:1.2;
+    }
+    .btn:active{opacity:.88}
+    .row{display:flex; gap:12px; align-items:center; flex-wrap:wrap;}
+    .grid-2{display:grid; grid-template-columns:1fr 1fr; gap:12px;}
+    .muted{color:var(--muted); font-size:13px;}
+    .copy-wrap{position:relative;}
+    .copy-btn{
+      position:absolute; right:10px; top:10px; z-index:1; width:auto;
+      padding:8px 12px; font-size:14px; border-radius:6px; background:#111827; color:#fff;
+    }
+    .msg-box{min-height:260px}
+    .checkbox{display:inline-flex; align-items:center; gap:8px; font-size:14px;}
+    @media (max-width: 980px){
+      .container{grid-template-columns:1fr;}
+    }
   </style>
 </head>
 <body>
   <h1>保費到期提醒產生器</h1>
+
   <div class="container">
-    <div class="grid">
+    <!-- Left: input + fields -->
+    <section class="card">
+      <label>貼上保單全文：</label>
+      <textarea id="rawInput" placeholder="在此貼上整篇保單資料…"></textarea>
 
-      <!-- 左欄：貼上保單 + 解析欄位 -->
-      <section class="card">
-        <h2>貼上保單全文</h2>
-        <label>在此貼上整篇保單資料：</label>
-        <textarea id="rawInput" class="mono" placeholder="把保單原文貼在這裡…" style="height:160px;"></textarea>
+      <div class="row" style="margin-top:12px;">
+        <button class="btn" id="btnSend">提取並生成</button>
+        <label class="checkbox">
+          <input type="checkbox" id="autoSend" checked>
+          自動送出 Webhook
+        </label>
+      </div>
 
-        <div class="row" style="margin:12px 0 4px;">
-          <button type="button" onclick="parseRaw()">提取並生成</button>
-          <label class="row" style="gap:6px; margin-left:4px;">
-            <input type="checkbox" id="autoWebhook" /> 自動送出 Webhook
-          </label>
-          <button type="button" class="btn-ghost" onclick="sendToWebhook()">手動送出 Webhook</button>
-          <span id="hookStatus" class="status"></span>
-        </div>
-
-        <div class="row" style="gap:16px; margin-top:8px;">
-          <div style="flex:1 1 50%;">
-            <label>Policy Number</label>
-            <input id="policyNumber" type="text" autocomplete="off">
-          </div>
-          <div style="flex:1 1 50%;">
-            <label>Due Date</label>
-            <input id="dueDate" type="date" autocomplete="off">
-          </div>
-        </div>
-
-        <label>Policy Owner Name</label>
-        <input id="ownerName" type="text" autocomplete="off">
-
-        <label>Insured Name</label>
-        <input id="insuredName" type="text" autocomplete="off">
-
-        <div class="row" style="gap:16px; margin-top:8px;">
-          <div style="flex:1 1 50%;">
-            <label>Premium (金額)</label>
-            <input id="premiumRaw" type="text" placeholder="系統會自動偵測美元或港元" readonly>
-          </div>
-          <div style="flex:1 1 50%;">
-            <label>Exchange Rate（若保費為美元）</label>
-            <input id="exchangeRate" type="number" step="0.0001" value="7.9">
-          </div>
-        </div>
-
-        <div style="margin-top:12px;">
-          <button type="button" onclick="generateMessages()">生成提醒訊息</button>
-          <div class="muted" style="margin-top:6px;">
-            保費繳費類型固定 <b>01</b>；Vitality 為 <b>Terminated</b> 時不顯示 Vitality 段。美元才會乘以匯率；港幣不乘。
-          </div>
-        </div>
-      </section>
-
-      <!-- 右欄：訊息輸出 -->
-      <section class="card">
-        <h2>訊息預覽／複製</h2>
-
-        <div style="margin-bottom:12px;">
-          <div class="row" style="justify-content:space-between;">
-            <div style="font-weight:600;">WhatsApp 訊息</div>
-            <button onclick="copyToClipboard('whatsappMsg')">複製</button>
-          </div>
-          <textarea id="whatsappMsg" class="msg" readonly></textarea>
-        </div>
-
+      <div class="grid-2" style="margin-top:16px;">
         <div>
-          <div class="row" style="justify-content:space-between;">
-            <div style="font-weight:600;">WeChat 訊息</div>
-            <button onclick="copyToClipboard('wechatMsg')">複製</button>
-          </div>
-          <textarea id="wechatMsg" class="msg" readonly></textarea>
+          <label>Policy Number</label>
+          <input id="policyNumber" readonly>
         </div>
-      </section>
+        <div>
+          <label>Due Date</label>
+          <input id="dueDate" placeholder="yyyy-mm-dd" readonly>
+        </div>
+      </div>
 
-    </div>
+      <div class="grid-2">
+        <div>
+          <label>Policy Owner Name</label>
+          <input id="ownerName" readonly>
+        </div>
+        <div>
+          <label>Insured Name</label>
+          <input id="insuredName" readonly>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div>
+          <label>Premium (金額)</label>
+          <input id="premiumRaw" placeholder="系統將依幣別計算" readonly>
+        </div>
+        <div>
+          <label>Exchange Rate（若保費為美元時使用）</label>
+          <input id="exchangeRate" type="number" step="0.0001" value="7.9">
+        </div>
+      </div>
+
+      <p class="muted" style="margin-top:12px;">
+        備註：若 webhook 回來的是 <b>US$</b>，會以上方匯率換算；若是 <b>HK$</b> 則直接使用。
+      </p>
+    </section>
+
+    <!-- Right: messages -->
+    <section class="card">
+      <h3 style="margin:6px 0 12px">訊息預覽 / 複製</h3>
+
+      <div class="copy-wrap">
+        <button class="copy-btn" data-copy="#whatsappMsg">複製</button>
+        <label>WhatsApp 訊息</label>
+        <textarea id="whatsappMsg" class="msg-box" readonly></textarea>
+      </div>
+
+      <div class="copy-wrap" style="margin-top:12px;">
+        <button class="copy-btn" data-copy="#wechatMsg">複製</button>
+        <label>WeChat 訊息</label>
+        <textarea id="wechatMsg" class="msg-box" readonly></textarea>
+      </div>
+    </section>
   </div>
 
   <script>
-    /* 你的 Make Webhook */
+    // ====== 你的 Make Webhook URL ======
     const WEBHOOK_URL = "https://hook.eu2.make.com/6tf86rya7llzle38muijmbwv6ska71g3";
 
-    /* 常數與工具 */
+    // 首字母映射（繳費號碼規則）
     const letterMap = { B:'1', E:'2', P:'3', A:'4', C:'5', G:'6', M:'8', V:'9' };
-    const MAIN_PAY_TYPE = '01'; // 固定
 
-    function shortName(full=''){
-      const safe = String(full).replace(/\*/g,'').trim();
-      const parts = safe.split(/\s+/).filter(p => !/^MS\.?$|^MR\.?$|^MRS\.?$/i.test(p));
-      const surname = parts[0] || '';
-      const initials = parts.slice(1).map(s => s[0]||'').filter(Boolean).join(' ');
-      return (surname + (initials? ' '+initials : '')).trim();
+    // 轉短名：去頭銜、姓 + 名字縮寫
+    function shortName(full){
+      if(!full) return "";
+      const cleaned = full.replace(/\*/g,'').trim();
+      const parts = cleaned.split(/\s+/).filter(p => !/^(MS\.?|MR\.?|MRS\.?)$/i.test(p));
+      const surname = parts[0] || "";
+      const initials = parts.slice(1).map(p=>p[0]).join(' ');
+      return surname + (initials? ' ' + initials : '');
     }
-    function formatDateCNLocal(iso){
-      if(!iso) return '';
+
+    // yyy-mm-dd => x月x日（本地）
+    function toCNDate(iso){
+      if(!iso) return "";
       const d = new Date(iso);
-      if (isNaN(d)) return '';
+      if(!Number.isFinite(d.getTime())) return iso; // 後備直接顯示
       return `${d.getMonth()+1}月${d.getDate()}日`;
     }
-    function setStatus(msg,isErr){
-      const el = document.getElementById('hookStatus');
-      el.textContent = msg || '';
-      el.className = 'status ' + (isErr ? 'err' : 'ok');
-      if(msg) setTimeout(()=>{ el.textContent=''; el.className='status'; }, 5000);
+
+    // 英文月日年 => yyy-mm-dd
+    function mmmToISO(str){
+      const d = new Date(str);
+      if(Number.isFinite(d.getTime())){
+        const m = String(d.getMonth()+1).padStart(2,'0');
+        const day = String(d.getDate()).padStart(2,'0');
+        return `${d.getFullYear()}-${m}-${day}`;
+      }
+      return "";
     }
 
-    /* 解析 */
-    let vitalityAccount='', vitalityStatus='', vitalityDueEn='';
-    let paymentModeDisplay='', hkPremiumValue='';
-    let _overrideOwnerShort=null, _overrideInsuredShort=null, _overrideVitality=null;
-    let lastPayload=null;
+    // 保單號碼首字母轉數字
+    function toPayNo(policyNo){
+      if(!policyNo) return "";
+      const f = policyNo[0].toUpperCase();
+      if(/[A-Z]/.test(f)){
+        return (letterMap[f] || '0') + policyNo.slice(1);
+      }
+      // 無字母，前置0
+      return '0' + policyNo;
+    }
 
-    function parseRaw(){
-      const raw = document.getElementById('rawInput').value || '';
-      const lines = raw.split(/\r?\n/);
-      let policy='', owner='', insured='', dueIso='', gotUsd=false, gotHkd=false;
+    // 幣別處理，回 HKD
+    function toHKD(premiumText, rate){
+      if(!premiumText) return "0.00";
+      const t = premiumText.replace(/,/g,'').trim();
+      const hkd = t.match(/HK\$\s*([0-9.]+)/i);
+      if(hkd) return Number(hkd[1]).toFixed(2);
+      const usd = t.match(/US\$\s*([0-9.]+)/i);
+      if(usd) return (Number(usd[1]) * Number(rate || 7.9)).toFixed(2);
+      // 純數字後備
+      const plain = t.match(/([0-9.]+)/);
+      return plain ? Number(plain[1]).toFixed(2) : "0.00";
+    }
 
-      vitalityAccount=''; vitalityStatus=''; vitalityDueEn='';
-      hkPremiumValue=''; paymentModeDisplay='';
+    // 產生訊息（固定繳費類型 01；Vitality 規則）
+    function buildMessagesFromResult(res){
+      // 期待的鍵（依你 Webhook Response）
+      // 「持有人」「受保人」「保單號碼」「預計保費及保費徵費金額」「保費到期日」「繳費形式」
+      // 「AIA Vitality 健康程式會員號碼」「AIA Vitality 健康程式會籍狀況」「AIA Vitality 健康程式會費到期日」
+      const ownerFull  = res["持有人"] || "";
+      const insuredFull= res["受保人"] || "";
+      const policyNo   = res["保單號碼"] || "";
+      const premiumRaw = res["預計保費及保費徵費金額"] || "";
+      const dueRaw     = res["保費到期日"] || "";
+      const payMode    = res["繳費形式"] || "";
 
-      for (let line of lines){
-        line = line && typeof line==='string' ? line.trim() : '';
-        if(!line) continue;
+      const vitNo   = res["AIA Vitality 健康程式會員號碼"] || "";
+      const vitStat = (res["AIA Vitality 健康程式會籍狀況"] || "").trim();
+      const vitDue  = res["AIA Vitality 健康程式會費到期日"] || "";
 
-        if(!policy && /^(Policy Details|保單資料)/i.test(line)){
-          const m = line.match(/-\s*([A-Z0-9]+)/); if(m) policy=m[1];
-        }
-        if(!owner && /^(Policy Owner|保單持有人)/i.test(line)){
-          owner = line.replace(/^(Policy Owner|保單持有人)\s*/i,'').replace(/\*.*/,'').trim();
-        }
-        if(!insured && /^(Insured|受保人)/i.test(line)){
-          insured = line.replace(/^(Insured|受保人)\s*/i,'').replace(/\*.*/,'').trim();
-        }
+      // 填入左側欄位
+      document.getElementById('policyNumber').value = policyNo;
+      document.getElementById('ownerName').value   = ownerFull;
+      document.getElementById('insuredName').value = insuredFull;
+      document.getElementById('premiumRaw').value  = premiumRaw;
 
-        if(!gotUsd){
-          const u = line.match(/US\$([0-9,]+\.?[0-9]*)/i);
-          if(u){ gotUsd=true; const r=parseFloat(document.getElementById('exchangeRate').value||'7.9');
-            hkPremiumValue=(parseFloat(u[1].replace(/,/g,''))*r).toFixed(2);
-          }
-        }
-        if(!gotHkd && !gotUsd){
-          const h = line.match(/HK\$([0-9,]+\.?[0-9]*)/i);
-          if(h){ gotHkd=true; hkPremiumValue = h[1].replace(/,/g,''); }
-        }
+      // 日期正規化
+      let dueISO = "";
+      if(/\d{4}-\d{2}-\d{2}/.test(dueRaw)) dueISO = dueRaw;
+      else if(/[A-Za-z]{3}\s+\d{1,2},\s*\d{4}/.test(dueRaw)) dueISO = mmmToISO(dueRaw);
+      document.getElementById('dueDate').value = dueISO;
 
-        if(!paymentModeDisplay && /^(Payment Mode|繳費形式)/i.test(line)){
-          const val = line.replace(/^(Payment Mode|繳費形式)\s*/i,'').trim();
-          paymentModeDisplay = /MONTHLY|月繳/i.test(val)?'月繳' : (/ANNUALLY|年繳/i.test(val)?'年繳':val);
-        }
+      // 計算展示用
+      const ownerS = shortName(ownerFull);
+      const insuredS = shortName(insuredFull);
+      const payNo = toPayNo(policyNo);
+      const payType = "01"; // 固定
+      const hkd = toHKD(premiumRaw, document.getElementById('exchangeRate').value);
+      const dueCN = toCNDate(dueISO);
+      const modeDisplay = /月/i.test(payMode) ? "月繳" : (/年/i.test(payMode) ? "年繳" : payMode || "年繳");
 
-        if(!dueIso && /^(Premium Due Date|保費到期日)/i.test(line)){
-          const c = line.match(/(\d{4})年(\d{1,2})月(\d{1,2})日/);
-          if(c){ dueIso=`${c[1]}-${c[2].padStart(2,'0')}-${c[3].padStart(2,'0')}`; }
-          else{
-            const e = line.match(/([A-Za-z]{3}\s*\d{1,2},\s*\d{4})/);
-            if(e){ const d=new Date(e[1]); dueIso=`${d.getFullYear()}-${(d.getMonth()+1+'').padStart(2,'0')}-${(d.getDate()+'').padStart(2,'0')}`; }
-          }
-        }
-
-        if(/Vitality Membership Number:/i.test(line)){
-          const m=line.match(/Vitality Membership Number:\s*([A-Za-z0-9]+)/i);
-          if(m){ const f=m[1][0].toUpperCase(); vitalityAccount = (letterMap[f]||'0') + m[1].slice(1); }
-        }
-        if(/Vitality Membership Status:/i.test(line)){
-          const m=line.match(/Vitality Membership Status:\s*([A-Za-z]+)/i);
-          if(m){ vitalityStatus=m[1]; }
-        }
-        if(/Vitality Membership Fee Due Date:/i.test(line)){
-          const m=line.match(/Vitality Membership Fee Due Date:\s*([A-Za-z]{3}\s*\d{1,2},\s*\d{4})/i);
-          if(m){ vitalityDueEn=m[1]; }
-        }
+      // Vitality 區塊（若 Terminated -> 不顯示）
+      let vitalityBlock = "";
+      if(vitStat && vitStat.toLowerCase() !== "terminated"){
+        let vitDueText = vitDue;
+        if(/[A-Za-z]{3}\s+\d{1,2},\s*\d{4}/.test(vitDue)) vitDueText = mmmToISO(vitDue);
+        const d = new Date(vitDueText);
+        const pretty = Number.isFinite(d.getTime())
+          ? `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`
+          : vitDue; // 後備直接顯示
+        // 會員號碼首字母也轉碼
+        const vitAcc = vitNo ? toPayNo(vitNo) : "";
+        vitalityBlock =
+`\n❗️Vitality 信息：‼️
+帳戶號碼：${vitAcc}
+帳戶狀態：${vitStat}
+繳費類型：05
+到期日：${pretty}
+繳費金額：港幣430`;
       }
 
-      // 寫回欄位（避免把「=line.replace(...)」當值）
-      const safe = v => (typeof v==='string' && v.startsWith('=') ? '' : v);
-      document.getElementById('policyNumber').value = safe(policy||'');
-      document.getElementById('ownerName').value   = safe(owner||'');
-      document.getElementById('insuredName').value = safe(insured||'');
-      document.getElementById('premiumRaw').value  = hkPremiumValue || '';
-      if(dueIso) document.getElementById('dueDate').value = dueIso;
-
-      _overrideOwnerShort = _overrideInsuredShort = null;
-      _overrideVitality = null;
-
-      generateMessages();
-    }
-
-    function vitalityBlock(){
-      const active = _overrideVitality || (
-        vitalityAccount && vitalityStatus && vitalityDueEn &&
-        String(vitalityStatus).toLowerCase() !== 'terminated'
-          ? { account:vitalityAccount, status:vitalityStatus, due:vitalityDueEn, payType:'05', amountHKD:430 }
-          : null
-      );
-      if(!active) return '';
-      const d = new Date(active.due || active.dueISO);
-      const dueTxt = `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`;
-      return `
-
-❗️Vitality 信息：‼️
-帳戶號碼：${active.account}
-帳戶狀態：${active.status}
-繳費類型：${active.payType || '05'}
-到期日：${dueTxt}
-繳費金額：港幣${active.amountHKD ?? 430}
-`;
-    }
-
-    function buildPayload(){
-      const policy = (document.getElementById('policyNumber').value||'').trim();
-      const owner  = (document.getElementById('ownerName').value||'').trim();
-      const insured= (document.getElementById('insuredName').value||'').trim();
-      const dueISO = (document.getElementById('dueDate').value||'').trim();
-      const premHK = (document.getElementById('premiumRaw').value||'0').toString();
-      const pm     = paymentModeDisplay || '';
-
-      const payNo = (letterMap[policy[0]?.toUpperCase()]||'0') + policy.slice(1);
-      const ownerShort   = _overrideOwnerShort ?? shortName(owner);
-      const insuredShort = _overrideInsuredShort ?? shortName(insured);
-      const dateCN       = formatDateCNLocal(dueISO);
-
-      const w =
+      const wa =
 `🌟 **溫馨提示** 🌟
 
 你好呀！😊🌈
 
 你的保費即將到期喇：
-- *持有人*：${ownerShort}
+- *持有人*：${ownerS}
 - *繳費號碼*：${payNo}
-- *繳費類型*：${MAIN_PAY_TYPE}
-- *受保人*：${insuredShort}
-- *保費到期日*：${dateCN}
-- *保費*：港元${premHK}
-- *繳付形式*：${pm}
-` + vitalityBlock() + `
+- *繳費類型*：${payType}
+- *受保人*：${insuredS}
+- *保費到期日*：${dueCN}
+- *保費*：港元${hkd}
+- *繳付形式*：${modeDisplay}${vitalityBlock}
 
 記得在到期日前繳費啦！如果有任何問題，隨時可以聯絡我們。📞💬
 
 感謝你的支持！🌟🌺`;
 
-      const c =
+      const wc =
 `🌟 溫馨提示 🌟
 
 你好呀！😊🌈
 
 你的保費即將到期喇：
-- 持有人：${ownerShort}
-- 繳費類型：${MAIN_PAY_TYPE}
+- 持有人：${ownerS}
+- 繳費類型：${payType}
 - 繳費號碼：${payNo}
-- 受保人：${insuredShort}
-- 保費到期日：${dateCN}
-- 保費：港元${premHK}
-- 繳付形式：${pm}
-` + vitalityBlock() + `
+- 受保人：${insuredS}
+- 保費到期日：${dueCN}
+- 保費：港元${hkd}
+- 繳付形式：${modeDisplay}${vitalityBlock}
 
 記得在到期日前繳費啦！如果有任何問題，隨時可以聯絡我們。📞💬`;
 
-      let vitality = null;
-      if(_overrideVitality){
-        const d=new Date(_overrideVitality.due || _overrideVitality.dueISO);
-        vitality = {
-          account:_overrideVitality.account, status:_overrideVitality.status,
-          payType:_overrideVitality.payType || '05',
-          dueISO:d.toISOString().slice(0,10), amountHKD:_overrideVitality.amountHKD ?? 430
-        };
-      }else if(vitalityAccount && vitalityStatus && vitalityDueEn && vitalityStatus.toLowerCase()!=='terminated'){
-        const d=new Date(vitalityDueEn);
-        vitality = { account:vitalityAccount, status:vitalityStatus, payType:'05', dueISO:d.toISOString().slice(0,10), amountHKD:430 };
-      }
-
-      return {
-        source:'premium-reminder', version:'2025-11-02',
-        policyNumber:policy, payNumber:payNo, payType:MAIN_PAY_TYPE,
-        ownerName:owner, insuredName:insured,
-        premiumHKD:premHK, premiumCurrency:'HKD',
-        dueDateISO:dueISO, dueDateText:dateCN, payModeDisplay:pm,
-        vitality, rawInput:document.getElementById('rawInput').value,
-        messages:{ whatsapp:w, wechat:c }, createdAt:new Date().toISOString()
-      };
+      document.getElementById('whatsappMsg').value = wa;
+      document.getElementById('wechatMsg').value  = wc;
     }
 
-    function generateMessages(){
-      const p = buildPayload();
-      lastPayload = p;
-      document.getElementById('whatsappMsg').value = p.messages.whatsapp;
-      document.getElementById('wechatMsg').value  = p.messages.wechat;
-      if(document.getElementById('autoWebhook').checked) sendToWebhook();
-    }
-
-    // ★ 支援 Make 的中文鍵名回傳
-    function applyWebhookResult(raw) {
-      let data = raw;
-      if (typeof raw === 'string') { try { data = JSON.parse(raw); } catch { data = null; } }
-      if (!data || typeof data !== 'object') return;
-
-      const zhToISO = (s) => {
-        if (!s) return '';
-        const zh = (s+'').match(/(\d{4})年(\d{1,2})月(\d{1,2})日/);
-        if (zh) return `${zh[1]}-${zh[2].padStart(2,'0')}-${zh[3].padStart(2,'0')}`;
-        const d = new Date(s);
-        return isNaN(d) ? '' : `${d.getFullYear()}-${(d.getMonth()+1+'').padStart(2,'0')}-${(d.getDate()+'').padStart(2,'0')}`;
-      };
-      const pickHKD = (s) => {
-        if (!s) return '';
-        const m = (s+'').match(/(?:HK\$|港幣)\s*([\d,]+(?:\.\d+)?)/i);
-        if (m) return m[1].replace(/,/g,'');
-        const n = (s+'').match(/([\d,]+(?:\.\d+)?)/);
-        return n ? n[1].replace(/,/g,'') : '';
-      };
-
-      const owner    = data['持有人'] || '';
-      const insured  = data['受保人'] || '';
-      const policyNo = data['保單號碼'] || '';
-      const premHK   = pickHKD(data['預計保費及保費徵費金額'] || data['預計保費及保費徵費金額：']);
-      const dueISO   = zhToISO(data['保費到期日'] || data['保費到期日：']);
-      const payMode  = data['繳費形式'] || data['繳費形式：'] || '';
-
-      const vitNo    = data['AIA Vitality 健康程式會員號碼'] || data['AIA Vitality 健康程式會員號碼：'];
-      const vitStat  = data['AIA Vitality 健康程式會籍狀況'] || data['AIA Vitality 健康程式會籍狀況：'];
-      const vitDue   = zhToISO(data['AIA Vitality 健康程式會費到期日'] || data['AIA Vitality 健康程式會費到期日：']);
-
-      if (policyNo) document.getElementById('policyNumber').value = policyNo;
-      if (owner)   document.getElementById('ownerName').value     = owner;
-      if (insured) document.getElementById('insuredName').value   = insured;
-      if (premHK)  document.getElementById('premiumRaw').value    = premHK;
-      if (dueISO)  document.getElementById('dueDate').value       = dueISO;
-      if (payMode) paymentModeDisplay = /月/i.test(payMode) ? '月繳' : (/年|ann/i.test(payMode) ? '年繳' : payMode);
-
-      _overrideVitality = null;
-      if (vitNo && vitStat && vitDue) {
-        if ((vitStat+'').toLowerCase() !== 'terminated') {
-          const f = vitNo[0]?.toUpperCase?.() || '';
-          const mapped = (letterMap[f] || '0') + vitNo.slice(1);
-          _overrideVitality = {
-            account: mapped, status: vitStat, payType: '05',
-            dueISO: vitDue, amountHKD: 430
-          };
-        }
-      }
-
-      generateMessages();
-    }
-
+    // 送資料到 Webhook（交由 ChatGPT 解析）
     async function sendToWebhook(){
+      const raw = document.getElementById('rawInput').value.trim();
+      if(!raw){ alert("請先貼上保單全文"); return; }
+
+      // 你在 Make 端可直接把「Body.type=json」接住
+      const payload = JSON.stringify({ text: raw });
+
       try{
-        const payload = lastPayload || buildPayload();
-        if(!WEBHOOK_URL){ setStatus('未設定 Webhook URL', true); return; }
-
-        setStatus('傳送中…');
-        const res = await fetch(WEBHOOK_URL,{
-          method:'POST', mode:'cors',
-          headers:{ 'Content-Type':'application/json' },
-          body:JSON.stringify(payload)
+        const res = await fetch(WEBHOOK_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: payload,
+          mode: "cors" // 伺服器需回 Access-Control-Allow-Origin
         });
-        if(!res.ok){ const t=await res.text(); throw new Error(`HTTP ${res.status} ${t||''}`); }
-
-        let data; const ct=res.headers.get('content-type')||'';
-        if(ct.includes('application/json')) data=await res.json();
-        else{ const txt=await res.text(); try{ data=JSON.parse(txt); }catch{ data=null; } }
-
-        if(data){
-          // 1) 若回 messages 直接覆寫
-          if(data.messages){
-            if(data.messages.whatsapp) document.getElementById('whatsappMsg').value = data.messages.whatsapp;
-            if(data.messages.wechat)   document.getElementById('wechatMsg').value   = data.messages.wechat;
-          }
-          // 2) 同時支援你的中文鍵名回填
-          applyWebhookResult(data);
+        if(!res.ok){
+          const t = await res.text().catch(()=>res.statusText);
+          throw new Error(`HTTP ${res.status}：${t || "Webhook 錯誤"}`);
         }
-        setStatus('已送出 ✅', false);
-      }catch(e){ console.error(e); setStatus('送出失敗：'+e.message, true); }
+        const data = await res.json(); // 期待 webhook response 回 JSON
+        // 若 Make 回來是字串 -> 盡量轉 JSON
+        const result = (typeof data === "string") ? JSON.parse(data) : data;
+
+        buildMessagesFromResult(result);
+      }catch(err){
+        console.error(err);
+        alert("Webhook 呼叫失敗／回應格式不正確，請檢查 Make 的 Webhook Response 模組。");
+      }
     }
 
-    function copyToClipboard(id){
-      const el=document.getElementById(id);
-      el.select(); el.setSelectionRange(0,99999);
-      navigator.clipboard.writeText(el.value).then(()=>alert('已複製到剪貼板！'));
-    }
+    // 事件：按鈕、複製、貼上自動
+    document.getElementById('btnSend').addEventListener('click', sendToWebhook);
+
+    document.querySelectorAll('.copy-btn').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        const sel = btn.getAttribute('data-copy');
+        const el = document.querySelector(sel);
+        navigator.clipboard.writeText(el.value || "").then(()=> {
+          btn.textContent = "已複製";
+          setTimeout(()=>btn.textContent="複製", 1000);
+        });
+      });
+    });
+
+    // 貼上即自動送出（若勾選）
+    document.getElementById('rawInput').addEventListener('paste', ()=>{
+      setTimeout(()=>{
+        if(document.getElementById('autoSend').checked){
+          sendToWebhook();
+        }
+      }, 0);
+    });
   </script>
 </body>
 </html>
