@@ -2,335 +2,241 @@
 <html lang="zh-HK">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>保費到期提醒產生器</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>保費到期提醒產生器（Webhook 版）</title>
   <style>
     :root{
-      --primary:#0d6efd;
-      --border:#e5e7eb;
-      --bg:#f8fafc;
+      --brand:#0d6efd;
+      --bg:#f6f7fb;
       --card:#ffffff;
-      --text:#0f172a;
-      --muted:#64748a;
-      --radius:10px;
+      --text:#1f2937;
+      --muted:#6b7280;
+      --ok:#16a34a;
+      --err:#dc2626;
+      --radius:12px;
     }
-    html,body{height:100%;}
+    *{box-sizing:border-box}
+    html,body{height:100%}
     body{
-      margin:0; padding:24px;
-      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang HK","PingFang TC","Noto Sans TC","Helvetica Neue",Arial,"Microsoft JhengHei",sans-serif;
+      margin:0; font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial;
       color:var(--text); background:var(--bg);
     }
-    h1{margin:0 0 20px; font-size:32px; font-weight:800;}
-    .container{
-      display:grid; gap:24px;
-      grid-template-columns: 1.1fr 1fr;
+    header{
+      padding:20px 24px; background:#fff; position:sticky; top:0; z-index:10;
+      border-bottom:1px solid #e5e7eb;
+    }
+    h1{margin:0; font-size:24px; letter-spacing:.02em}
+    .wrap{padding:20px; max-width:1200px; margin:0 auto}
+    .grid{
+      display:grid; grid-template-columns:1.1fr .9fr; gap:20px;
+    }
+    @media (max-width: 900px){
+      .grid{ grid-template-columns:1fr; }
     }
     .card{
-      background:var(--card); border:1px solid var(--border);
-      border-radius:var(--radius); padding:20px;
-      box-shadow:0 1px 2px rgba(0,0,0,0.04);
+      background:var(--card); border:1px solid #e5e7eb; border-radius:var(--radius);
+      box-shadow: 0 1px 0 rgba(0,0,0,.03);
     }
-    label{display:block; font-size:14px; color:var(--muted); margin:10px 0 6px;}
-    input, textarea, button{
-      width:100%; padding:12px; box-sizing:border-box;
-      border:1px solid var(--border); border-radius:8px; font-size:16px; background:#fff;
+    .card header{
+      padding:14px 16px; border-bottom:1px solid #eef0f4; position:static;
     }
-    textarea{resize:vertical; min-height:160px; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;}
+    .card header h2{margin:0; font-size:18px}
+    .card .body{ padding:16px; }
+    label{display:block; font-weight:600; margin:10px 0 6px}
+    textarea,input[type="text"]{
+      width:100%; padding:12px 14px; border:1px solid #d1d5db; border-radius:10px;
+      font-family: ui-monospace,SFMono-Regular,Menlo,monospace; font-size:14px;
+      background:#fff;
+    }
+    textarea{ min-height:180px; resize:vertical; }
+    .row{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
     .btn{
-      display:inline-block; width:auto;
-      background:var(--primary); color:#fff; border:none; cursor:pointer;
-      font-size:18px; padding:12px 20px; border-radius:8px; line-height:1.2;
+      appearance:none; border:0; border-radius:10px; padding:12px 18px;
+      background:var(--brand); color:#fff; font-weight:600; cursor:pointer;
+      font-size:16px; min-height:48px;
     }
-    .btn:active{opacity:.88}
-    .row{display:flex; gap:12px; align-items:center; flex-wrap:wrap;}
-    .grid-2{display:grid; grid-template-columns:1fr 1fr; gap:12px;}
-    .muted{color:var(--muted); font-size:13px;}
-    .copy-wrap{position:relative;}
-    .copy-btn{
-      position:absolute; right:10px; top:10px; z-index:1; width:auto;
-      padding:8px 12px; font-size:14px; border-radius:6px; background:#111827; color:#fff; cursor:pointer; border:none;
+    .btn.secondary{ background:#111827; }
+    .btn.ghost{ background:#eef2ff; color:#3730a3 }
+    .btn.small{ font-size:14px; padding:8px 12px; min-height:38px }
+    .hint{ color:var(--muted); font-size:13px; margin-top:6px }
+    .status{ font-size:13px; margin-left:8px }
+    .status.ok{ color:var(--ok) }
+    .status.err{ color:var(--err) }
+    .outbox{ position:relative }
+    .copyBar{
+      position:absolute; top:10px; right:10px; display:flex; gap:8px;
     }
-    .msg-box{min-height:260px}
-    .checkbox{display:inline-flex; align-items:center; gap:8px; font-size:14px;}
-    @media (max-width: 980px){
-      .container{grid-template-columns:1fr;}
+    .copyBar .btn{ min-height:36px; padding:8px 12px; font-size:13px; }
+    .msg{
+      width:100%; min-height:260px; border:1px solid #e5e7eb; border-radius:10px;
+      padding:12px 14px; font-family: ui-monospace,SFMono-Regular,Menlo,monospace;
+      background:#fafafa; white-space:pre-wrap; line-height:1.55; font-size:14px;
     }
+    .split{
+      display:grid; grid-template-columns:1fr; gap:12px;
+    }
+    .switch{
+      display:inline-flex; align-items:center; gap:8px; font-size:14px; color:#334155
+    }
+    .switch input{ width:18px; height:18px }
   </style>
 </head>
 <body>
-  <h1>保費到期提醒產生器</h1>
+  <header><h1>保費到期提醒產生器（Webhook 版）</h1></header>
 
-  <div class="container">
-    <!-- Left: input + fields -->
-    <section class="card">
-      <label>貼上保單全文：</label>
-      <textarea id="rawInput" placeholder="在此貼上整篇保單資料…"></textarea>
+  <div class="wrap">
+    <div class="grid">
+      <!-- 左側：輸入與送出 -->
+      <section class="card">
+        <header><h2>貼上保單全文</h2></header>
+        <div class="body">
+          <label for="raw">在此貼上整篇保單資料：</label>
+          <textarea id="raw" placeholder="把 AIA 的保單頁全文貼在這裡…"></textarea>
 
-      <div class="row" style="margin-top:12px;">
-        <button class="btn" id="btnSend">提取並生成</button>
-        <label class="checkbox">
-          <input type="checkbox" id="autoSend" checked>
-          自動送出 Webhook
-        </label>
-      </div>
+          <div class="row" style="margin-top:10px">
+            <button class="btn" id="btnSend">送到 Webhook 分析</button>
+            <button class="btn ghost" id="btnClear">清空</button>
+            <label class="switch">
+              <input type="checkbox" id="autoCopy" checked />
+              取得回應後自動覆蓋到右側訊息框
+            </label>
+            <span id="netStatus" class="status"></span>
+          </div>
 
-      <div class="grid-2" style="margin-top:16px;">
-        <div>
-          <label>Policy Number</label>
-          <input id="policyNumber" readonly>
+          <p class="hint">
+            • 這個頁面會把你貼上的內容用 <code>POST JSON</code> 送到你的 Make.com Webhook：<br>
+            <code>https://hook.eu2.make.com/6tf86rya7llzle38muijmbwv6ska71g3</code><br>
+            • Webhook 的回應會直接顯示在右側 WhatsApp / WeChat 訊息框。
+          </p>
         </div>
-        <div>
-          <label>Due Date</label>
-          <input id="dueDate" placeholder="yyyy-mm-dd" readonly>
+      </section>
+
+      <!-- 右側：訊息預覽 -->
+      <section class="card">
+        <header><h2>訊息預覽 / 複製</h2></header>
+        <div class="body split">
+          <div class="outbox">
+            <div class="copyBar">
+              <button class="btn small" onclick="copyMsg('wa')">複製</button>
+            </div>
+            <label for="wa">WhatsApp 訊息</label>
+            <pre id="wa" class="msg"></pre>
+          </div>
+
+          <div class="outbox">
+            <div class="copyBar">
+              <button class="btn small" onclick="copyMsg('wc')">複製</button>
+            </div>
+            <label for="wc">WeChat 訊息</label>
+            <pre id="wc" class="msg"></pre>
+          </div>
         </div>
-      </div>
-
-      <div class="grid-2">
-        <div>
-          <label>Policy Owner Name</label>
-          <input id="ownerName" readonly>
-        </div>
-        <div>
-          <label>Insured Name</label>
-          <input id="insuredName" readonly>
-        </div>
-      </div>
-
-      <div class="grid-2">
-        <div>
-          <label>Premium (金額)</label>
-          <input id="premiumRaw" placeholder="系統將依幣別計算" readonly>
-        </div>
-        <div>
-          <label>Exchange Rate（若保費為美元時使用）</label>
-          <input id="exchangeRate" type="number" step="0.0001" value="7.9">
-        </div>
-      </div>
-
-      <p class="muted" style="margin-top:12px;">
-        備註：若 webhook 回來的是 <b>HK$</b> 會直接用；若為 <b>US$</b> 會以上方匯率換算。
-      </p>
-    </section>
-
-    <!-- Right: messages -->
-    <section class="card">
-      <h3 style="margin:6px 0 12px">訊息預覽 / 複製</h3>
-
-      <div class="copy-wrap">
-        <button class="copy-btn" data-copy="#whatsappMsg">複製</button>
-        <label>WhatsApp 訊息</label>
-        <textarea id="whatsappMsg" class="msg-box" readonly></textarea>
-      </div>
-
-      <div class="copy-wrap" style="margin-top:12px;">
-        <button class="copy-btn" data-copy="#wechatMsg">複製</button>
-        <label>WeChat 訊息</label>
-        <textarea id="wechatMsg" class="msg-box" readonly></textarea>
-      </div>
-    </section>
+      </section>
+    </div>
   </div>
 
   <script>
-    // ====== 你的 Make Webhook URL ======
-    const WEBHOOK_URL = "https://hook.eu2.make.com/6tf86rya7llzle38muijmbwv6ska71g3";
+    const WEBHOOK = "https://hook.eu2.make.com/6tf86rya7llzle38muijmbwv6ska71g3";
+    const rawEl = document.getElementById('raw');
+    const waEl  = document.getElementById('wa');
+    const wcEl  = document.getElementById('wc');
+    const btnSend = document.getElementById('btnSend');
+    const btnClear = document.getElementById('btnClear');
+    const netStatus = document.getElementById('netStatus');
+    const autoCopy = document.getElementById('autoCopy');
 
-    // 首字母映射（繳費號碼規則）
-    const letterMap = { B:'1', E:'2', P:'3', A:'4', C:'5', G:'6', M:'8', V:'9' };
-
-    // 轉短名：去頭銜、姓 + 名字縮寫
-    function shortName(full){
-      if(!full) return "";
-      const cleaned = full.replace(/\*/g,'').trim();
-      const parts = cleaned.split(/\s+/).filter(p => !/^(MS\.?|MR\.?|MRS\.?)$/i.test(p));
-      const surname = parts[0] || "";
-      const initials = parts.slice(1).map(p=>p[0]).join(' ');
-      return surname + (initials? ' ' + initials : '');
+    function setStatus(text, ok=false, err=false){
+      netStatus.textContent = text || '';
+      netStatus.className = 'status' + (ok?' ok':'') + (err?' err':'');
     }
 
-    // yyy-mm-dd => x月x日（本地）
-    function toCNDate(iso){
-      if(!iso) return "";
-      const d = new Date(iso);
-      if(!Number.isFinite(d.getTime())) return iso; // 後備直接顯示
-      return `${d.getMonth()+1}月${d.getDate()}日`;
+    function normalizeVitalitySpacing(text){
+      if(!text) return text;
+      // 在「=VItality健康程式資料=」或「❗️Vitality 信息」前面加一行空白
+      return text
+        .replace(/(\S)\n(=VItality健康程式資料=)/g, '$1\n\n$2')
+        .replace(/(\S)\n(❗️?Vitality[^\n]*)/g, '$1\n\n$2');
     }
 
-    // 英文月日年 => yyy-mm-dd
-    function mmmToISO(str){
-      const d = new Date(str);
-      if(Number.isFinite(d.getTime())){
-        const m = String(d.getMonth()+1).padStart(2,'0');
-        const day = String(d.getDate()).padStart(2,'0');
-        return `${d.getFullYear()}-${m}-${day}`;
-      }
-      return "";
-    }
-
-    // 保單號碼首字母轉數字
-    function toPayNo(policyNo){
-      if(!policyNo) return "";
-      const f = policyNo[0].toUpperCase();
-      if(/[A-Z]/.test(f)){
-        return (letterMap[f] || '0') + policyNo.slice(1);
-      }
-      // 無字母，前置0
-      return '0' + policyNo;
-    }
-
-    // 幣別處理，回 HKD
-    function toHKD(premiumText, rate){
-      if(!premiumText) return "0.00";
-      const t = premiumText.replace(/,/g,'').trim();
-      const hkd = t.match(/HK\$\s*([0-9.]+)/i);
-      if(hkd) return Number(hkd[1]).toFixed(2);
-      const usd = t.match(/US\$\s*([0-9.]+)/i);
-      if(usd) return (Number(usd[1]) * Number(rate || 7.9)).toFixed(2);
-      // 純數字後備
-      const plain = t.match(/([0-9.]+)/);
-      return plain ? Number(plain[1]).toFixed(2) : "0.00";
-    }
-
-    // 產生訊息（固定繳費類型 01；Vitality 規則）
-    function buildMessagesFromResult(res){
-      // 期待鍵（與 Webhook Response 對齊）
-      const ownerFull  = res["持有人"] || "";
-      const insuredFull= res["受保人"] || "";
-      const policyNo   = res["保單號碼"] || "";
-      const premiumRaw = res["預計保費及保費徵費金額"] || "";
-      const dueRaw     = res["保費到期日"] || "";
-      const payMode    = res["繳費形式"] || "";
-
-      const vitNo   = res["AIA Vitality 健康程式會員號碼"] || "";
-      const vitStat = (res["AIA Vitality 健康程式會籍狀況"] || "").trim();
-      const vitDue  = res["AIA Vitality 健康程式會費到期日"] || "";
-
-      // 填左側欄位
-      document.getElementById('policyNumber').value = policyNo;
-      document.getElementById('ownerName').value   = ownerFull;
-      document.getElementById('insuredName').value = insuredFull;
-      document.getElementById('premiumRaw').value  = premiumRaw;
-
-      // 日期正規化
-      let dueISO = "";
-      if(/\d{4}-\d{2}-\d{2}/.test(dueRaw)) dueISO = dueRaw;
-      else if(/[A-Za-z]{3}\s+\d{1,2},\s*\d{4}/.test(dueRaw)) dueISO = mmmToISO(dueRaw);
-      document.getElementById('dueDate').value = dueISO;
-
-      // 計算展示用
-      const ownerS = shortName(ownerFull);
-      const insuredS = shortName(insuredFull);
-      const payNo = toPayNo(policyNo);
-      const payType = "01"; // 固定
-      const hkd = toHKD(premiumRaw, document.getElementById('exchangeRate').value);
-      const dueCN = toCNDate(dueISO);
-      const modeDisplay = /月/i.test(payMode) ? "月繳" : (/年/i.test(payMode) ? "年繳" : payMode || "年繳");
-
-      // Vitality 區塊（若 Terminated -> 不顯示）
-      let vitalityBlock = "";
-      if(vitStat && vitStat.toLowerCase() !== "terminated"){
-        let vitDueText = vitDue;
-        if(/[A-Za-z]{3}\s+\d{1,2},\s*\d{4}/.test(vitDue)) vitDueText = mmmToISO(vitDue);
-        const d = new Date(vitDueText);
-        const pretty = Number.isFinite(d.getTime())
-          ? `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`
-          : vitDue; // 後備直接顯示
-        // 會員號碼首字母也轉碼
-        const vitAcc = vitNo ? toPayNo(vitNo) : "";
-        // ★ 這裡多一行空白行（\n\n）
-        vitalityBlock =
-`\n\n❗️Vitality 信息：‼️
-帳戶號碼：${vitAcc}
-帳戶狀態：${vitStat}
-繳費類型：05
-到期日：${pretty}
-繳費金額：港幣430`;
-      }
-
-      const wa =
-`🌟 **溫馨提示** 🌟
-
-你好呀！😊🌈
-
-你的保費即將到期喇：
-- *持有人*：${ownerS}
-- *繳費號碼*：${payNo}
-- *繳費類型*：${payType}
-- *受保人*：${insuredS}
-- *保費到期日*：${dueCN}
-- *保費*：港元${hkd}
-- *繳付形式*：${modeDisplay}${vitalityBlock}
-
-記得在到期日前繳費啦！如果有任何問題，隨時可以聯絡我們。📞💬
-
-感謝你的支持！🌟🌺`;
-
-      const wc =
-`🌟 溫馨提示 🌟
-
-你好呀！😊🌈
-
-你的保費即將到期喇：
-- 持有人：${ownerS}
-- 繳費類型：${payType}
-- 繳費號碼：${payNo}
-- 受保人：${insuredS}
-- 保費到期日：${dueCN}
-- 保費：港元${hkd}
-- 繳付形式：${modeDisplay}${vitalityBlock}
-
-記得在到期日前繳費啦！如果有任何問題，隨時可以聯絡我們。📞💬`;
-
-      document.getElementById('whatsappMsg').value = wa;
-      document.getElementById('wechatMsg').value  = wc;
-    }
-
-    // 送資料到 Webhook（交由 Make + ChatGPT 解析）
     async function sendToWebhook(){
-      const raw = document.getElementById('rawInput').value.trim();
-      if(!raw){ alert("請先貼上保單全文"); return; }
+      const payload = {
+        raw: rawEl.value || '',
+        meta: {
+          source: 'premiumreminder-web',
+          ua: navigator.userAgent,
+          ts: new Date().toISOString()
+        }
+      };
+      if(!payload.raw.trim()){
+        setStatus('請先貼上內容', false, true);
+        rawEl.focus();
+        return;
+      }
 
-      const payload = JSON.stringify({ text: raw });
+      btnSend.disabled = true;
+      setStatus('傳送中…');
 
       try{
-        const res = await fetch(WEBHOOK_URL, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: payload,
-          mode: "cors"
+        const res = await fetch(WEBHOOK, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
         });
+
+        const text = await res.text(); // 可能是純文字或 JSON
         if(!res.ok){
-          const t = await res.text().catch(()=>res.statusText);
-          throw new Error(`HTTP ${res.status}：${t || "Webhook 錯誤"}`);
+          throw new Error(`HTTP ${res.status}: ${text.slice(0,200)}`);
         }
-        const data = await res.json().catch(async()=>JSON.parse(await res.text()));
-        buildMessagesFromResult(data);
+
+        let out = text;
+        // 如果回應是 JSON，嘗試取常見欄位；否則原樣顯示
+        try{
+          const j = JSON.parse(text);
+          // 常見路徑：Make 的「Webhook response」直接回傳字串本文
+          // 也可能包在 {message: "..."} 或 {data: "..."} 等欄位
+          out = j.message || j.data || j.text || j.result || JSON.stringify(j, null, 2);
+        }catch(_){ /* 不是 JSON，直接使用原始 text */ }
+
+        out = normalizeVitalitySpacing(out);
+
+        if(autoCopy.checked){
+          waEl.textContent = out;
+          wcEl.textContent = out;
+        }
+        setStatus('完成 ✔', true, false);
       }catch(err){
         console.error(err);
-        alert("Webhook 呼叫失敗／回應格式不正確，請檢查 Make 的 Webhook Response 模組。");
+        setStatus('發送失敗：' + err.message, false, true);
+      }finally{
+        btnSend.disabled = false;
       }
     }
 
-    // 事件：按鈕、複製、貼上自動
-    document.getElementById('btnSend').addEventListener('click', sendToWebhook);
+    function copyMsg(id){
+      const el = (id==='wa') ? waEl : wcEl;
+      if(!el.textContent.trim()){
+        setStatus('沒有可複製的文字', false, true); return;
+      }
+      navigator.clipboard.writeText(el.textContent)
+        .then(()=> setStatus('已複製到剪貼簿 ✔', true, false))
+        .catch(e => setStatus('複製失敗：' + e.message, false, true));
+    }
 
-    document.querySelectorAll('.copy-btn').forEach(btn=>{
-      btn.addEventListener('click', ()=>{
-        const sel = btn.getAttribute('data-copy');
-        const el = document.querySelector(sel);
-        navigator.clipboard.writeText(el.value || "").then(()=> {
-          btn.textContent = "已複製";
-          setTimeout(()=>btn.textContent="複製", 1000);
-        });
-      });
+    btnSend.addEventListener('click', sendToWebhook);
+    btnClear.addEventListener('click', () => {
+      rawEl.value = '';
+      waEl.textContent = '';
+      wcEl.textContent = '';
+      setStatus('');
+      rawEl.focus();
     });
 
-    // 貼上即自動送出（若勾選）
-    document.getElementById('rawInput').addEventListener('paste', ()=>{
-      setTimeout(()=>{
-        if(document.getElementById('autoSend').checked){
-          sendToWebhook();
-        }
-      }, 0);
+    // 支援 Cmd/Ctrl + Enter 直接送出
+    rawEl.addEventListener('keydown', (e)=>{
+      if((e.metaKey || e.ctrlKey) && e.key === 'Enter'){
+        e.preventDefault();
+        sendToWebhook();
+      }
     });
   </script>
 </body>
